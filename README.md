@@ -160,7 +160,25 @@ T=4             # number of CPU threads to use
 ### Step 00 — Get the reference genome *(script)*
 
 ```bash
-bash steps/00_reference.sh
+mkdir ref
+cd ref
+wget -O Pf3D7.fasta "https://zenodo.org/records/18681980/files/PlasmoDB-54-Pfalciparum3D7-Genome.fasta?download=1"
+wget -O Pf3D7.gff.gz "https://zenodo.org/records/18681980/files/PlasmoDB-55_Pfalciparum3D7.gff.gz?download=1"
+gunzip Pf3D7.gff
+
+# Build indexes
+samtools faidx Pf3D7.fasta
+bwa index Pf3D7.fasta
+gatk CreateSequenceDictionary -R Pf3D7.fasta
+
+python ./scripts/build_dr_regions.py' \
+      --fasta Pf3D7.fasta \
+      --gff Pf3D7.fasta.gff \
+      --genes ./resources/dr_genes.tsv \
+      --out-bed ./resources/dr_genes.bed \
+      --out-cds ./resources/dr_genes.cds.json
+
+cd ../
 ```
 
 **What it does.** Mapping and variant-calling tools can't just read a plain FASTA —
