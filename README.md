@@ -190,7 +190,7 @@ from PlasmoDB (from MalariaGen Pf8 Project) and builds:
 - a **`.dict`** dictionary (`gatk CreateSequenceDictionary`) — lists the contigs;
 - the **BWA index** (`bwa index`) — the data structure the aligner searches against;
 - from the PlasmoDB **GFF** (gene annotation), a **BED** of the drug-resistance
-  genes and a **CDS model** (`ref/dr_genes_cds.json`) used later to turn DNA
+  genes and a **CDS model** (`./resources/dr_genes.cds.json`) used later to turn DNA
   variants into amino-acid changes.
 
 **Why pre-indexing?** A genome is large; searching it read-by-read without an index
@@ -492,7 +492,7 @@ gatk HaplotypeCaller \
     -O results/07_variants/${S}.g.vcf.gz \
     -ERC GVCF \
     --sample-ploidy 2 \
-    -L ref/dr_genes.bed --interval-padding 1000
+    -L ./resources/dr_genes.bed --interval-padding 1000
 
 # 2) GenotypeGVCFs: turn the GVCF into a final genotyped VCF
 gatk GenotypeGVCFs \
@@ -512,7 +512,7 @@ genotype them all together (see [below](#scaling-to-a-cohort)). We teach the
 scalable pattern from the start. HaplotypeCaller docs:
 [HaplotypeCaller](https://gatk.broadinstitute.org/hc/en-us/articles/360037225632-HaplotypeCaller).
 
-**`-L ref/dr_genes.bed`** restricts calling to the drug-resistance genes so it
+**`-L ./resources/dr_genes.bed`** restricts calling to the drug-resistance genes so it
 finishes quickly. To call the **whole genome** instead, drop that line (slower).
 
 **Ploidy.** Blood-stage *P. falciparum* is **haploid** (one copy of each
@@ -604,7 +604,7 @@ mkdir -p results/09_report
 
 python scripts/report_dr.py \
     --fasta ref/Pf3D7.fasta \
-    --cds ref/dr_genes_cds.json \
+    --cds ./resources/dr_genes.cds.json \
     --markers resources/dr_markers.tsv \
     --vcf results/08_filter/${S}.filtered.vcf.gz \
     --coverage results/06_coverage/${S}.dr.regions.bed.gz \
@@ -647,7 +647,7 @@ python scripts/plot_coverage.py \
     --windows results/06_coverage/${S}.genome.regions.bed.gz \
     --summary results/06_coverage/${S}.genome.mosdepth.summary.txt \
     --dr-regions results/06_coverage/${S}.dr.regions.bed.gz \
-    --cds ref/dr_genes_cds.json \
+    --cds ./resources/dr_genes.cds.json \
     --sample $S \
     --gene mdr1 --gene-id PF3D7_0523000 \
     --out results/10_plots/${S}.mdr1_coverage.png
@@ -742,7 +742,7 @@ genotyping** so every position is evaluated in every sample.
 gatk GenomicsDBImport \
      -V sample1.g.vcf.gz -V sample2.g.vcf.gz ... \
      --genomicsdb-workspace-path cohort_db \
-     -L ref/dr_genes.bed
+     -L ./resources/dr_genes.bed
 
 # 3) joint genotyping across the whole cohort
 gatk GenotypeGVCFs -R ref/Pf3D7.fasta -V gendb://cohort_db -O cohort.vcf.gz
