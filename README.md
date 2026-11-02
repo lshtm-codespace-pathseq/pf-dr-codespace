@@ -266,6 +266,8 @@ explorer ▸ *Open with Live Preview*, or download it).
 Guide to each FastQC module (what "good" vs "bad" looks like):
 [FastQC Help](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/Help/).
 
+The data here actually looks fairly clean - but we will trim the reads for practise!
+
 > **✅ Check your understanding**
 > 1. Why do quality scores typically fall off at the end of a read?
 > 2. If you saw a strong GC peak at ~41%, what would you suspect — and which later
