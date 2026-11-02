@@ -1,0 +1,8 @@
+
+  ==============================================================
+   P. falciparum drug-resistance workshop
+   Tools are pre-installed in the 'pfdr' environment.
+   Start with:   bash steps/00_reference.sh
+   Then follow README.md one step at a time.
+  ==============================================================
+

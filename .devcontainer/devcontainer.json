@@ -1,0 +1,26 @@
+{
+  "name": "Pf drug-resistance workshop",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  },
+  "onCreateCommand": "bash .devcontainer/setup.sh",
+  "postAttachCommand": "cat .devcontainer/welcome.txt",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "mechatroner.rainbow-csv",
+        "ms-vscode.live-server",
+        "tomoki1207.pdf"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    },
+    "codespaces": {
+      "openFiles": ["README.md"]
+    }
+  }
+}
