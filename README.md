@@ -450,7 +450,7 @@ mosdepth --no-per-base --fast-mode -t $T --by 500 \
     results/05_markdup/${S}.markdup.bam
 
 # (b) restricted to the drug-resistance genes — a quick per-gene table
-mosdepth --no-per-base -t $T --by ref/dr_genes.bed \
+mosdepth --no-per-base -t $T --by .resources/dr_genes.bed \
     results/06_coverage/${S}.dr \
     results/05_markdup/${S}.markdup.bam
 
