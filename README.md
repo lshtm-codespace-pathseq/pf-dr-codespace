@@ -1,100 +1,230 @@
-# *Plasmodium falciparum* drug-resistance from WGS — a step-by-step workshop
+<!--
+  To enable the one-click launch button, replace OWNER/REPO below with your
+  GitHub repo (e.g. janedoe/pf-dr-workshop), then uncomment the line.
+  [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/OWNER/REPO)
+-->
 
-A small, self-contained teaching pipeline that takes **raw Illumina reads from one
-*P. falciparum* sample** and walks — one command at a time — through the whole
-path to a **drug-resistance genotype**:
+# Detecting malaria drug resistance from genome sequence — a 2-hour hands-on course
+
+Welcome! Over the next two hours you will take **raw DNA sequencing reads from a
+single *Plasmodium falciparum* (malaria) sample** and work, one command at a time,
+all the way to a **drug-resistance report** — the kind of result that tells a
+public-health team which antimalarials a parasite population is likely to resist.
+
+You will run every step yourself and see exactly what each tool does:
 
 ```
-FastQC → trim (fastp) → remove human reads (hostile) → map (bwa mem -M)
-      → mark duplicates → coverage (mosdepth) → call variants (GATK)
-      → hard-filter → interpret resistance markers → plot mdr1 coverage → MultiQC
+FastQC  →  trim (fastp)  →  remove human reads (hostile)  →  map to genome (bwa mem -M)
+       →  mark duplicates  →  coverage (mosdepth)  →  call variants (GATK)
+       →  hard-filter  →  interpret resistance markers  →  plot mdr1 copy number  →  MultiQC
 ```
 
-It is built to run **in GitHub Codespaces with zero local installation**. Every
-tool is pre-installed when the Codespace is created. **You type each command
-yourself**, with its real parameters, so you understand every stage — the point is
-to learn the steps, not to hide them behind a workflow manager.
+Everything runs **in your web browser** through GitHub Codespaces — there is
+**nothing to install** on your own computer. The tools are pre-installed for you.
 
-The example sample is **ERR018972** (a *P. falciparum* run on the ENA), mapped to
-the **3D7 reference genome** from PlasmoDB.
+> **This is a teaching pipeline, for training and research — not for clinical
+> diagnosis.** For real surveillance, see the curated resources linked at the end.
 
 ---
 
-## 1. Start the Codespace
+## Learning objectives
 
-1. On the GitHub repo page: **Code ▸ Codespaces ▸ Create codespace on main**.
-2. Wait a few minutes. On first creation it installs micromamba and builds the
-   `pfdr` conda environment with every tool (FastQC, fastp, MultiQC, hostile,
-   bwa, samtools, bcftools, mosdepth, GATK4, seqtk). You’ll see it working in the
-   terminal; the message `Setup complete` means it’s done.
-3. **Open a new terminal** (``Terminal ▸ New Terminal``). You should see the
-   prompt prefixed with `(pfdr)` — the environment is active automatically.
+By the end of this course you will be able to:
 
-> Check you’re ready: `bwa 2>&1 | head -3` and `gatk --version` should both work.
+1. **Explain the whole short-read variant-calling workflow** and why each stage
+   exists — QC, trimming, host removal, mapping, duplicate marking, coverage,
+   variant calling, filtering.
+2. **Run each step as a real command** and read its output to judge whether it
+   worked (quality scores, mapping rate, duplicate rate, depth, filter status).
+3. **Interpret the biology**: translate variants into amino-acid changes at known
+   resistance codons, and recognise **gene amplification** (copy number) as a
+   second, separate resistance mechanism.
+4. **Name the main *P. falciparum* resistance genes** (*crt, mdr1, dhfr, dhps,
+   kelch13, cytb*) and the drugs they affect.
+5. **Describe how this scales** from one sample to a cohort, and when to swap
+   hard-filtering for machine-learning filtering (VQSR).
 
-No Codespaces? See [Running locally](#running-locally) at the bottom.
+**Who it's for:** anyone comfortable typing commands into a terminal. No prior
+bioinformatics needed — every command is given and explained. Some familiarity
+with DNA, genes and the idea of a "mutation" helps.
 
 ---
 
-## 2. Run the pipeline, one command at a time
+## Background: why this matters (2-minute read)
 
-Work through the steps **in order**, reading the output of each before moving on.
-First set two variables you’ll reuse in every command (threads: a Codespace has
-~4 cores):
+Malaria killed an estimated 597,000 people in 2023, most of them children in
+sub-Saharan Africa ([WHO World Malaria Report](https://www.who.int/teams/global-malaria-programme/reports/world-malaria-report-2024)).
+*P. falciparum* is the deadliest species. Our main weapons are **drugs** — and the
+parasite keeps evolving **resistance** to them. Chloroquine, the former front-line
+drug, was lost to resistance across most of the world; **artemisinin** (the core of
+today's first-line ACT combinations) is now showing **partial resistance** in
+Southeast Asia and, more recently, East Africa.
+
+Resistance is driven by **changes in a handful of parasite genes**. Two kinds of
+change matter:
+
+- **Point mutations** (single-letter DNA changes) that alter a protein — e.g.
+  *crt* **K76T** for chloroquine, *kelch13* **C580Y** for artemisinin.
+- **Gene amplification** (extra *copies* of a gene) — e.g. extra copies of **mdr1**
+  reduce susceptibility to lumefantrine and mefloquine.
+
+If we **sequence** a parasite's genome, we can read these changes directly. That
+lets surveillance programmes track resistance across a country and choose drugs
+that still work. This course is a miniature version of exactly that analysis.
+
+Good primers if you want more depth:
+- Review: *Antimalarial drug resistance: linking P. falciparum parasite biology to
+  the clinic* — Blasco, Leroy & Fidock, **Nature Medicine** 2017,
+  [doi:10.1038/nm.4381](https://doi.org/10.1038/nm.4381).
+- [WHO Malaria Threats Map](https://apps.who.int/malaria/maps/threats/) — live view
+  of where resistance markers are found.
+- [MalariaGEN](https://www.malariagen.net/) — the global *P. falciparum* genomic
+  epidemiology project whose methods this course mirrors.
+
+---
+
+## Our example sample
+
+**ERR018972** — a paired-end Illumina whole-genome sequencing run of *P.
+falciparum*, hosted on the **European Nucleotide Archive (ENA)**. You can see its
+record here: <https://www.ebi.ac.uk/ena/browser/view/ERR018972>.
+
+We map it to the **3D7 reference genome** — the standard lab reference strain —
+downloaded from **[PlasmoDB](https://plasmodb.org/)**, the *Plasmodium* genomics
+database. The 3D7 genome is ~23 Mb across 14 chromosomes plus the mitochondrion and
+apicoplast, and is famously **AT-rich (~81% A+T, only ~19% GC)** — remember that
+when the GC plots look unusual; it's the biology, not a problem.
+
+---
+
+## Part 1 — Start your Codespace (≈ 5 min)
+
+A **Codespace** is a full Linux computer that runs in the cloud and opens as a
+VS Code editor **inside your browser**. GitHub builds it from this repository and
+installs all the tools automatically. Nothing lands on your laptop.
+
+1. On this repository's page on GitHub, click the green **`< > Code`** button ▸
+   **Codespaces** tab ▸ **Create codespace on main**.
+2. A browser editor opens. **The first time, it spends ~3–5 minutes building the
+   environment** (installing FastQC, fastp, hostile, bwa, samtools, GATK, mosdepth,
+   MultiQC …). You'll see progress in the terminal; it finishes with
+   `Setup complete`. *(If your instructor enabled "prebuilds", this is near-instant.)*
+3. **Open a fresh terminal**: menu ▸ **Terminal ▸ New Terminal**. The prompt should
+   start with **`(pfdr)`** — that means the software environment is active.
+
+**Check you're ready** — both of these should print something sensible:
 
 ```bash
-S=ERR018972     # sample name
-T=4             # threads
+gatk --version
+bwa 2>&1 | head -3
 ```
 
-> **Steps 00 and 01 stay as scripts** — they only download the reference + reads
-> and build indexes (boilerplate, nothing to learn by typing out). **Every other
-> step you run as the real commands below.** If you ever want to check your typing,
-> the identical commands also live in `steps/NN_*.sh`, and `bash run_all.sh` runs
-> the whole thing end to end.
+<details>
+<summary>Prompt doesn't show <code>(pfdr)</code>?</summary>
+
+The setup may still be running (wait for `Setup complete`), or just activate it:
+
+```bash
+eval "$("$HOME/.local/bin/micromamba" shell hook -s bash)" && micromamba activate pfdr
+```
+</details>
+
+> **New to the terminal?** You type a command and press Enter; it runs and prints
+> output. `mkdir -p X` makes a folder, `ls X` lists it, `|` sends one tool's output
+> into the next. That's 90% of what you need today.
 
 ---
 
-### Step 00 — Reference genome *(script)*
+## Part 2 — Run the pipeline, one command at a time
+
+Work through the steps **in order**. Read the output of each before moving on —
+noticing *what changed* is where the learning is.
+
+First, set two variables you'll reuse everywhere (a Codespace has ~4 CPU cores):
+
+```bash
+S=ERR018972     # the sample name
+T=4             # number of CPU threads to use
+```
+
+> **Steps 00 and 01 are just downloads**, so they stay as one-line scripts. **Every
+> other step you type out as the real commands** — that's the point of the course.
+> The identical commands also live in `steps/NN_*.sh` if you want to check your
+> typing, and `bash run_all.sh` runs the whole thing start to finish.
+>
+> **Short on time?** See *Workshop mode* right after step 01 to make everything run
+> faster.
+
+---
+
+### Step 00 — Get the reference genome *(script)*
 
 ```bash
 bash steps/00_reference.sh
 ```
 
-Downloads the 3D7 genome from PlasmoDB and builds the companion files every later
-tool needs: a **`.fai`** (`samtools faidx`), a **`.dict`** (`gatk
-CreateSequenceDictionary`), the **BWA index** (`bwa index`), and — by parsing the
-PlasmoDB **GFF** — a BED of the drug-resistance genes (`ref/dr_genes.bed`) plus a
-CDS model (`ref/dr_genes_cds.json`) used later to translate variants into codons.
+**What it does.** Mapping and variant-calling tools can't just read a plain FASTA —
+they need pre-built **index** files beside it. This script downloads the 3D7 genome
+from PlasmoDB and builds:
 
-*P. falciparum* is extremely **AT-rich (~81% AT)** — remember that when you see the
-GC plots; it’s normal, not a problem with your data.
+- a **`.fai`** index (`samtools faidx`) — lets tools jump to any position instantly;
+- a **`.dict`** dictionary (`gatk CreateSequenceDictionary`) — lists the contigs;
+- the **BWA index** (`bwa index`) — the data structure the aligner searches against;
+- from the PlasmoDB **GFF** (gene annotation), a **BED** of the drug-resistance
+  genes and a **CDS model** (`ref/dr_genes_cds.json`) used later to turn DNA
+  variants into amino-acid changes.
 
-### Step 01 — Download the reads *(script)*
+**Why pre-indexing?** A genome is large; searching it read-by-read without an index
+would be hopelessly slow. The index is built once and reused by every later step —
+the same idea as the index at the back of a textbook.
+
+> **Check:** the command ends by listing files in `ref/`. You should see
+> `Pf3D7.fasta`, `Pf3D7.fasta.bwt` (and friends), `Pf3D7.dict`, and `dr_genes.bed`.
+
+### Step 01 — Download the sequencing reads *(script)*
 
 ```bash
 bash steps/01_get_reads.sh
 ```
 
-Pulls the paired FASTQs from the ENA into `data/` (`${S}_1.fastq.gz`,
-`${S}_2.fastq.gz`).
+**What it does.** Downloads the two FASTQ files for our sample from the ENA:
+`data/${S}_1.fastq.gz` (forward reads, "R1") and `data/${S}_2.fastq.gz` (reverse
+reads, "R2"). **Paired-end** sequencing reads each DNA fragment from both ends,
+which helps place reads accurately on the genome.
 
-**To keep a classroom session fast**, subsample first — e.g. 2 million read pairs:
+<details>
+<summary>What's a FASTQ file?</summary>
+
+Four lines per read: an ID, the DNA sequence, a `+`, and a **quality string** —
+one character per base encoding how confident the sequencer was (the "Phred"
+score). FastQC (next step) summarises those qualities. Spec and background:
+[Illumina FASTQ](https://support.illumina.com/bulletins/2016/04/fastq-files-explained.html).
+</details>
+
+#### ⏩ Workshop mode (recommended for a timed class)
+
+The full read set takes a while to download and process. To keep the session
+snappy, **subsample** to e.g. 2 million read pairs:
 
 ```bash
 SUBSAMPLE_PAIRS=2000000 bash steps/01_get_reads.sh
 ```
 
-The later commands below use the raw files. **If you subsampled**, swap
-`data/${S}_1.fastq.gz` → `data/${S}.sub_1.fastq.gz` (and `_2`) in step 02/03.
-(Subsampling lowers coverage, which weakens copy-number and mixed-infection calls.)
+Every later step auto-detects the subsampled files — **no other change needed** if
+you use the `steps/*.sh` scripts. If you're typing the raw commands below, swap
+`data/${S}_1.fastq.gz` → `data/${S}.sub_1.fastq.gz` (and `_2`) in steps 02–03.
+
+> Trade-off: fewer reads = **lower coverage**, which makes the mdr1 copy-number plot
+> (step 11) and mixed-infection calls less clear. Fine for learning; use the full
+> set for a "real" result.
 
 ---
 
-### Step 02 — FastQC on the raw reads
+### Step 02 — Look at the raw data with FastQC
 
-Look at the data *before* changing it: per-base quality, adapter content,
-duplication, and the GC distribution.
+**Golden rule of sequencing analysis: look at your data before you touch it.**
+[FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/) reads a FASTQ
+and produces an HTML report of quality metrics.
 
 ```bash
 mkdir -p results/01_fastqc_raw
@@ -103,15 +233,33 @@ fastqc -t $T --outdir results/01_fastqc_raw \
     data/${S}_1.fastq.gz data/${S}_2.fastq.gz
 ```
 
-**Look at:** per-base sequence quality, adapter content, and the GC peak. A second
-GC peak around ~41 % is a hint of **human contamination** (removed in step 04).
-Open `results/01_fastqc_raw/*_fastqc.html` from the file explorer.
+**Open** `results/01_fastqc_raw/${S}_1_fastqc.html` (right-click in the file
+explorer ▸ *Open with Live Preview*, or download it).
 
-### Step 03 — Trim adapters & low-quality bases (fastp), then re-QC
+**What to look at:**
+- **Per-base sequence quality** — a box plot of quality along the read. It usually
+  dips toward the 3′ end; that's normal and we'll trim it next.
+- **Adapter content** — leftover sequencing adapter, also trimmed next.
+- **Per-sequence GC content** — for pure *P. falciparum* this peaks very low
+  (~19% GC). A **second peak around ~41%** is a tell-tale sign of **human DNA
+  contamination** — which step 04 removes.
 
-`fastp` removes adapters and low-quality read ends and drops reads that become too
-short; `--detect_adapter_for_pe` auto-detects adapters for paired-end data. Then
-run FastQC again to compare **before vs after**.
+Guide to each FastQC module (what "good" vs "bad" looks like):
+[FastQC Help](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/Help/).
+
+> **✅ Check your understanding**
+> 1. Why do quality scores typically fall off at the end of a read?
+> 2. If you saw a strong GC peak at ~41%, what would you suspect — and which later
+>    step addresses it?
+
+---
+
+### Step 03 — Trim adapters and low-quality bases (fastp), then re-check
+
+[fastp](https://github.com/OpenGene/fastp) cleans reads: it removes sequencing
+**adapters**, trims **low-quality** bases from the ends, and discards reads that
+become too short. `--detect_adapter_for_pe` auto-detects adapters for paired-end
+data. We then run FastQC again so you can compare **before vs after**.
 
 ```bash
 mkdir -p results/02_trim
@@ -133,15 +281,30 @@ fastqc -t $T --outdir results/02_trim \
     results/02_trim/${S}.trim_2.fastq.gz
 ```
 
-**Look at:** `results/02_trim/fastp.html` — the one-file summary of what was
-trimmed and the before/after quality.
+**What the flags mean:** `--cut_front --cut_tail --cut_mean_quality 20` slides along
+each read and trims ends whose average quality drops below Q20 (= 99% base-call
+accuracy); `--qualified_quality_phred 20` defines what counts as a "good" base;
+`--length_required 50` drops reads shorter than 50 bp after trimming.
+
+**Open** `results/02_trim/fastp.html` — a single, clear before/after summary.
+
+> **✅ Check your understanding**
+> - A Phred quality of 20 means a 1-in-100 chance the base is wrong. What error
+>   probability does **Q30** mean? *(Hint: Phred Q = −10·log₁₀(error).)*
+>
+> **🧪 Exercise:** re-run fastp with a stricter `--cut_mean_quality 30` into a
+> different output folder and compare how many reads survive in `fastp.html`.
+
+---
 
 ### Step 04 — Remove human (host) reads with hostile
 
-Clinical malaria samples come from **patient blood**, so the data mixes parasite
-and human reads. `hostile` aligns reads to a human reference (Bowtie2 index
-`human-t2t-hla`, **downloaded & cached on first use, ~3.5 GB**) and keeps only the
-reads that *don’t* map.
+Clinical malaria samples are sequenced from **patient blood**, so the DNA is a
+**mixture of parasite and human**. We must remove human reads before analysis:
+it speeds things up, avoids false alignments, and — importantly — means no human
+genetic data is left in files we might share.
+[hostile](https://github.com/bede/hostile) does this by aligning reads to a human
+reference and **keeping only the reads that do *not* match**.
 
 ```bash
 mkdir -p results/03_dehost
@@ -155,24 +318,31 @@ hostile clean \
     --out-dir results/03_dehost \
     --force > results/03_dehost/hostile_log.json
 
-# hostile names outputs *.clean_1.fastq.gz / *.clean_2.fastq.gz —
-# give them tidy names the next step expects:
+# hostile names its outputs *.clean_1.fastq.gz / *.clean_2.fastq.gz —
+# copy them to tidy names the next step expects:
 cp results/03_dehost/*clean_1.fastq.gz results/03_dehost/${S}.clean_1.fastq.gz
 cp results/03_dehost/*clean_2.fastq.gz results/03_dehost/${S}.clean_2.fastq.gz
 ```
 
-**Look at:** `results/03_dehost/hostile_log.json` — `reads_removed_proportion` is
-the fraction flagged as human.
+> ⏳ **First run downloads a ~3.5 GB human genome index** (`human-t2t-hla`), then
+> caches it — so this step is the slow one. Start it, then read on while it works.
+> (Your instructor may have pre-cached it, making this instant.)
 
-### Step 05 — Map to the reference with `bwa mem -M`
+**What to look at:** `results/03_dehost/hostile_log.json` reports `reads_in`,
+`reads_removed` and `reads_removed_proportion` — the fraction flagged as human.
+hostile deliberately errs toward **keeping** microbial reads. Method and paper:
+Constantinides *et al.*, **Bioinformatics** 2023,
+[doi:10.1093/bioinformatics/btad728](https://doi.org/10.1093/bioinformatics/btad728).
 
-Two flags matter:
-- **`-M`** marks shorter split hits as *secondary* — the conventional, safe choice
-  for Picard/GATK compatibility (the flag this workshop specifies).
-- **`-R`** adds a **read group**. GATK **refuses to run** without `@RG`, because it
-  groups reads by sample (`SM`) and library (`LB`).
+> **✅ Check your understanding:** why is it scientifically *and* ethically
+> important to strip human reads from a pathogen sequencing dataset?
 
-Pipe straight into `samtools sort` (no giant intermediate SAM), then index.
+---
+
+### Step 05 — Map the reads to the genome with `bwa mem -M`
+
+Now we find **where each read came from** on the 3D7 genome.
+[bwa mem](https://github.com/lh3/bwa) is the standard short-read aligner.
 
 ```bash
 mkdir -p results/04_map
@@ -188,14 +358,37 @@ samtools index results/04_map/${S}.sorted.bam
 samtools flagstat results/04_map/${S}.sorted.bam
 ```
 
-**Look at:** the `flagstat` output — what fraction of reads mapped, and how many
-are properly paired?
+**The two flags that matter:**
+- **`-M`** marks shorter "split" alignments as *secondary*. This keeps the output
+  compatible with Picard/GATK, which expect exactly one primary alignment per read.
+  *(This is the flag the course specifies.)*
+- **`-R`** attaches a **read group** header (`@RG`). It records which **sample**
+  (`SM`) and **library** (`LB`) the reads came from. **GATK refuses to run without
+  it** — on a real project the read group is how reads from many lanes/samples stay
+  correctly labelled. Background:
+  [GATK read groups](https://gatk.broadinstitute.org/hc/en-us/articles/360035890671-Read-groups).
 
-### Step 06 — Mark duplicates
+We then pipe (`|`) bwa's output straight into **`samtools sort`** (no giant
+intermediate file) to make a coordinate-sorted **BAM** (the compressed binary form
+of an alignment), and **index** it. [samtools](https://www.htslib.org/) is the
+Swiss-army knife for BAM files.
 
-PCR/optical duplicates are the *same* fragment sequenced many times; they must not
-each count as independent evidence. `MarkDuplicates` **flags** them (doesn’t delete
-them) so the caller ignores them.
+**What to look at:** the **`flagstat`** summary — especially the **mapped %** (what
+fraction of reads found a home on the genome) and **properly paired %**. Decode any
+SAM flag here: [Explain SAM flags](https://broadinstitute.github.io/picard/explain-flags.html).
+
+> **🧪 Exercise:** peek at the actual alignments —
+> `samtools view results/04_map/${S}.sorted.bam | head -3` — and find the mapping
+> position (column 4) and mapping quality (column 5).
+
+---
+
+### Step 06 — Mark duplicate reads
+
+During library prep, PCR can copy the **same original DNA fragment** many times.
+Those duplicate read-pairs aren't independent evidence, so we must not let each one
+"vote" during variant calling. `MarkDuplicates` finds them and **flags** them in
+the BAM (it doesn't delete them); the caller then ignores flagged reads.
 
 ```bash
 mkdir -p results/05_markdup
@@ -207,54 +400,72 @@ gatk MarkDuplicates \
     --CREATE_INDEX true
 ```
 
-**Look at:** `PERCENT_DUPLICATION` in `${S}.dup_metrics.txt`.
+**What to look at:** `PERCENT_DUPLICATION` in `${S}.dup_metrics.txt`. High
+duplication means low library complexity (little unique DNA). Tool docs:
+[MarkDuplicates](https://gatk.broadinstitute.org/hc/en-us/articles/360037052812-MarkDuplicates-Picard).
 
-> **BQSR?** A human-style pipeline would run `BaseRecalibrator` + `ApplyBQSR` here.
-> It needs a trusted known-variants set, which isn’t standard for *P. falciparum*,
-> so this workshop skips it — see [Scaling to a cohort](#scaling-to-a-cohort).
+> **A note on BQSR.** A human-genome pipeline would next run **Base Quality Score
+> Recalibration** (`BaseRecalibrator` + `ApplyBQSR`) to correct systematic errors
+> in the quality scores. BQSR needs a trusted set of *known variants* to mask real
+> variation — and *P. falciparum* has no single standard known-sites set, so this
+> course **skips BQSR**. See [Scaling to a cohort](#scaling-to-a-cohort) for how
+> you'd add it. Docs:
+> [BQSR](https://gatk.broadinstitute.org/hc/en-us/articles/360035890531-Base-Quality-Score-Recalibration-BQSR).
 
-### Step 07 — Coverage with mosdepth
+---
 
-Two runs: **genome-wide in 500 bp windows** (the track plotted across mdr1 in step
-11), and **restricted to the DR genes** (a per-gene mean-depth table). The mosdepth
-output prefix can include a path, so no `cd` is needed.
+### Step 07 — Measure coverage with mosdepth
+
+**Coverage** (or "depth") = how many reads overlap each position. We need it for two
+reasons: to judge whether we have *enough* data to trust a variant, and to spot
+**gene amplification** (a duplicated gene has roughly double the surrounding depth).
+[mosdepth](https://github.com/brentp/mosdepth) computes it fast.
 
 ```bash
 mkdir -p results/06_coverage
 
-# (a) genome-wide, 500 bp windows
+# (a) genome-wide, in 500 bp windows — the track we'll plot across mdr1
 mosdepth --no-per-base --fast-mode -t $T --by 500 \
     results/06_coverage/${S}.genome \
     results/05_markdup/${S}.markdup.bam
 
-# (b) over the drug-resistance genes
+# (b) restricted to the drug-resistance genes — a quick per-gene table
 mosdepth --no-per-base -t $T --by ref/dr_genes.bed \
     results/06_coverage/${S}.dr \
     results/05_markdup/${S}.markdup.bam
 
-# peek at per-gene mean depth
+# peek at the per-gene mean depth:
 zcat results/06_coverage/${S}.dr.regions.bed.gz
 ```
 
-**Look at:** the per-gene depths — mdr1 noticeably higher than the others is the
-amplification signal you’ll plot in step 11.
+**What to look at:** in the per-gene table, is **mdr1** noticeably deeper than the
+other genes? That's the amplification signal you'll visualise in step 11. Check the
+genome-wide average with:
 
-### Step 08 — Call variants (GATK, the GVCF way)
+```bash
+awk '$1=="total"' results/06_coverage/${S}.genome.mosdepth.summary.txt
+```
 
-Two moves, exactly as in the GATK germline short-variant best practice:
-1. **HaplotypeCaller** in **GVCF mode** (`-ERC GVCF`) → a record for *every*
-   position (variant or reference block).
-2. **GenotypeGVCFs** → the final genotyped VCF.
+mosdepth paper: Pedersen & Quinlan, **Bioinformatics** 2018,
+[doi:10.1093/bioinformatics/btx699](https://doi.org/10.1093/bioinformatics/btx699).
 
-Why two moves for one sample? Because **this is what scales to a cohort** (see
-below). `-L ref/dr_genes.bed` restricts calling to the DR genes to keep it fast.
-**Ploidy 2:** blood-stage *P. falciparum* is haploid, but patient samples are often
-**mixed infections** — calling with `--sample-ploidy 2` lets a second clone appear
-as a “heterozygous” genotype (the MalariaGEN convention).
+> **✅ Check your understanding:** why is coverage, not just the presence of a
+> variant read, essential before you believe a genotype call?
+
+---
+
+### Step 08 — Call variants with GATK (the GVCF way)
+
+Now we find the positions where our sample **differs from the reference**.
+We use [GATK](https://gatk.broadinstitute.org/)'s **HaplotypeCaller**, which
+locally re-assembles reads to call SNPs and short indels accurately. This is done
+in **two moves**, exactly as in the
+[GATK germline best-practice workflow](https://gatk.broadinstitute.org/hc/en-us/articles/360035535932-Germline-short-variant-discovery-SNPs-Indels):
 
 ```bash
 mkdir -p results/07_variants
 
+# 1) HaplotypeCaller in GVCF mode: a record for EVERY position
 gatk HaplotypeCaller \
     -R ref/Pf3D7.fasta \
     -I results/05_markdup/${S}.markdup.bam \
@@ -263,23 +474,46 @@ gatk HaplotypeCaller \
     --sample-ploidy 2 \
     -L ref/dr_genes.bed --interval-padding 1000
 
+# 2) GenotypeGVCFs: turn the GVCF into a final genotyped VCF
 gatk GenotypeGVCFs \
     -R ref/Pf3D7.fasta \
     -V results/07_variants/${S}.g.vcf.gz \
     -O results/07_variants/${S}.vcf.gz
 
-# how many raw variants?
+# how many variants were called?
 zcat results/07_variants/${S}.vcf.gz | grep -vc '^#'
 ```
 
-**Whole genome instead?** Drop the `-L … --interval-padding …` line (slower).
+**Why two moves for one sample?** The intermediate **GVCF**
+([what's a GVCF?](https://gatk.broadinstitute.org/hc/en-us/articles/360035531812-GVCF-Genomic-Variant-Call-Format))
+records *every* position, variant or not. For one sample it seems like extra work —
+but it's exactly what lets you **scale to a cohort**: make one GVCF per sample, then
+genotype them all together (see [below](#scaling-to-a-cohort)). We teach the
+scalable pattern from the start. HaplotypeCaller docs:
+[HaplotypeCaller](https://gatk.broadinstitute.org/hc/en-us/articles/360037225632-HaplotypeCaller).
+
+**`-L ref/dr_genes.bed`** restricts calling to the drug-resistance genes so it
+finishes quickly. To call the **whole genome** instead, drop that line (slower).
+
+**Ploidy.** Blood-stage *P. falciparum* is **haploid** (one copy of each
+chromosome). But a patient can carry **more than one parasite clone** — a *mixed
+infection*. Calling with **`--sample-ploidy 2`** lets a second clone show up as a
+"heterozygous" genotype, which is how [MalariaGEN](https://www.malariagen.net/)
+handles it. The report in step 10 flags such sites as *mixed*.
+
+> **✅ Check your understanding:** a true, pure haploid sample should have no
+> heterozygous calls. If you see many, what might that tell you about the sample?
+
+---
 
 ### Step 09 — Hard-filter the variants
 
-“Hard filtering” flags variants on fixed thresholds — the right approach when you
-**don’t have enough data to train** VQSR (the single-sample case). SNPs and indels
-need **different** thresholds, so: split → filter each → merge. Filtered records are
-**labelled** in the FILTER column, not deleted.
+Not every called variant is real; some are artefacts of mapping or sequencing. We
+flag the suspicious ones using fixed thresholds on quality annotations — **"hard
+filtering"**. It's the right tool when you *don't* have enough data to train the
+machine-learning alternative (VQSR). SNPs and indels misbehave differently, so we
+**split → filter each → merge**. Filtered records are **labelled** in the FILTER
+column (not deleted), so you can always see *why* something was dropped.
 
 ```bash
 mkdir -p results/08_filter
@@ -320,17 +554,30 @@ gatk MergeVcfs \
 zcat results/08_filter/${S}.filtered.vcf.gz | grep -v '^#' | cut -f7 | sort | uniq -c
 ```
 
-**Look at:** the FILTER breakdown. See the [Annotation glossary](#annotation-glossary)
-for what QD / FS / MQ / SOR / ReadPosRankSum mean and why indels get looser cutoffs.
+**What to look at:** the final count of `PASS` vs flagged records. The DR report in
+step 10 keeps only `PASS`. The annotations (QD, FS, MQ, SOR, …) are explained in the
+[glossary below](#annotation-glossary). GATK's own walkthrough:
+[Hard-filtering germline short variants](https://gatk.broadinstitute.org/hc/en-us/articles/360035890471-Hard-filtering-germline-short-variants).
+The VCF format itself: [VCF spec / hts-specs](https://samtools.github.io/hts-specs/).
 
-### Step 10 — Interpret the resistance markers
+> **✅ Check your understanding:** why do indels get *looser* strand-bias and
+> read-position thresholds than SNPs? *(Hint: think about how hard indels are to
+> align near read ends.)*
 
-This step uses the repo’s helper (`scripts/report_dr.py`): for each known marker it
-finds the codon’s genomic position from the CDS model (**handling + and − strand
-genes**), **self-checks** that the reference codon really translates to the
-documented wild-type amino acid (catches a reference/GFF release mismatch), applies
-the PASS variants, translates, and classifies the codon as **wild-type / resistant
-marker / other mutation**, with allele fractions so **mixed infections** show up.
+---
+
+### Step 10 — Interpret the resistance markers 🎯
+
+This is the payoff. The helper script `scripts/report_dr.py` takes each known
+resistance marker (gene, codon, wild-type and resistant amino acids) and:
+
+1. finds that codon's position in the genome from the CDS model (**correctly
+   handling genes on the + and − DNA strands**),
+2. **self-checks** that the reference codon really encodes the documented
+   wild-type amino acid (a guard against a reference/annotation version mismatch),
+3. applies the PASS variants, **translates** the codon, and classifies it as
+   **wild-type / resistance marker / other mutation**,
+4. reports allele fractions so **mixed infections** are visible.
 
 ```bash
 mkdir -p results/09_report
@@ -347,15 +594,31 @@ python scripts/report_dr.py \
     --mixed-min-af 0.10
 ```
 
-**Outputs:** `results/09_report/${S}.dr_variants.tsv` (every marker),
-`${S}.dr_calls.tsv` (non-wild-type only), and a JSON. The marker list is the
-editable TSV **`resources/dr_markers.tsv`** (covers `crt`, `mdr1`, `dhfr`, `dhps`,
-`kelch13`, `cytb`). It is a **teaching set, not a clinical-grade panel**.
+It prints a table and writes `results/09_report/${S}.dr_variants.tsv` (every
+marker), `${S}.dr_calls.tsv` (only the non-wild-type calls), and a JSON.
 
-### Step 11 — Plot mdr1 coverage & estimate copy number
+**The marker list lives in [`resources/dr_markers.tsv`](resources/dr_markers.tsv)**
+— a plain table you can read and extend. It covers *crt, mdr1, dhfr, dhps, kelch13*
+and *cytb*. It is a **teaching set, not a clinical-grade panel** (see
+[Going further](#going-further) for curated tools).
 
-`mdr1` resistance has **two** mechanisms: point mutations (step 10) **and gene
-amplification**. Copy number ≈ *median depth over mdr1 / genome-wide median depth*.
+> **✅ Check your understanding:** your report shows **crt K76T**. Which drug does
+> that marker most classically predict resistance to?
+>
+> **🧪 Exercise:** open `resources/dr_markers.tsv`, add a *kelch13* codon not
+> already listed (e.g. **P553L**), and re-run step 10. Did a new row appear?
+
+---
+
+### Step 11 — Plot mdr1 coverage and estimate copy number 📈
+
+*mdr1* resistance has **two** mechanisms: point mutations (handled above) **and
+gene amplification**. Amplification can't be seen in the VCF — you see it in the
+**depth**. We estimate:
+
+```
+copy number  ≈  median depth over mdr1  /  genome-wide median depth
+```
 
 ```bash
 mkdir -p results/10_plots
@@ -370,14 +633,23 @@ python scripts/plot_coverage.py \
     --out results/10_plots/${S}.mdr1_coverage.png
 ```
 
-**Look at:** `results/10_plots/${S}.mdr1_coverage.png`. A value clearly above 1 =
-amplification, linked to **reduced lumefantrine/mefloquine susceptibility**. The
-same logic applies to **plasmepsin 2/3** amplification and **piperaquine**.
+**Open** `results/10_plots/${S}.mdr1_coverage.png`. The top panel is the depth
+profile across *mdr1* with the 1× and 2× baselines drawn in; the bottom panel is
+mean depth per DR gene. A value clearly **above 1** means amplification, linked to
+**reduced lumefantrine and mefloquine susceptibility**. The *same logic* applies to
+**plasmepsin 2/3** amplification and **piperaquine** resistance.
 
-### Step 12 — Aggregate everything with MultiQC
+> **🧪 Exercise:** copy the command but point it at plasmepsin 2
+> (`--gene plasmepsin2 --gene-id PF3D7_1408000`) to plot a different gene's depth.
 
-Stitches FastQC, fastp, samtools, mosdepth and GATK outputs into one interactive
-HTML report.
+---
+
+### Step 12 — Pull it all together with MultiQC
+
+[MultiQC](https://multiqc.info/) scans the whole `results/` folder and stitches
+every report (FastQC, fastp, samtools, mosdepth, GATK) into **one interactive HTML
+page** — the standard way to review a run, and invaluable when comparing many
+samples.
 
 ```bash
 mkdir -p results/11_multiqc
@@ -385,40 +657,66 @@ mkdir -p results/11_multiqc
 multiqc -f -o results/11_multiqc -n ${S}_multiqc.html results
 ```
 
-**Look at:** `results/11_multiqc/${S}_multiqc.html` — the whole run on one page.
+**Open** `results/11_multiqc/${S}_multiqc.html` — your whole analysis on one page.
+Paper: Ewels *et al.*, **Bioinformatics** 2016,
+[doi:10.1093/bioinformatics/btw354](https://doi.org/10.1093/bioinformatics/btw354).
+
+🎉 **You've gone from raw reads to a drug-resistance report.**
 
 ---
 
-All settings (sample, URLs, threads, ploidy, regions to call, filtering depth) also
-live in **`config.sh`** with comments, which is what the `steps/*.sh` scripts and
-`run_all.sh` read.
+## What a finished run looks like
+
+After all steps, `results/` contains:
+
+```
+01_fastqc_raw/   raw-read FastQC reports
+02_trim/         fastp output + trimmed-read FastQC + fastp.html
+03_dehost/       human-free reads + hostile_log.json
+04_map/          sorted, indexed BAM + flagstat
+05_markdup/      duplicate-marked BAM + metrics
+06_coverage/     mosdepth genome-wide + per-DR-gene depth
+07_variants/     GVCF + genotyped VCF
+08_filter/       hard-filtered VCF (PASS/flagged)
+09_report/       dr_variants.tsv, dr_calls.tsv, dr_report.json   ← the answer
+10_plots/        <sample>.mdr1_coverage.png                      ← the plot
+11_multiqc/      <sample>_multiqc.html                           ← the overview
+```
+
+The headline outputs are **`09_report/${S}.dr_variants.tsv`** and
+**`10_plots/${S}.mdr1_coverage.png`**.
 
 ---
 
-## 4. The drug-resistance biology in one table
+## The drug-resistance biology in one table
 
 | Gene | PlasmoDB ID | Mechanism | Drugs affected |
 |------|-------------|-----------|----------------|
-| **crt** | PF3D7_0709000 | SNPs (K76T …; plus PPQ-associated SNPs) | chloroquine, amodiaquine, piperaquine |
-| **mdr1** | PF3D7_0523000 | SNPs **and copy number** | lumefantrine, mefloquine, amodiaquine, chloroquine |
-| **dhfr** | PF3D7_0417200 | SNPs (N51I, C59R, S108N, I164L) | pyrimethamine (SP) |
-| **dhps** | PF3D7_0810800 | SNPs (A437G, K540E, A581G) | sulfadoxine (SP) |
-| **kelch13** | PF3D7_1343700 | propeller-domain SNPs (e.g. C580Y, R561H) | artemisinin (partial resistance) |
-| **cytb** | PF3D7_MIT02300 | SNP at codon 268 | atovaquone |
-| **plasmepsin 2/3** | PF3D7_1408000/…8100 | copy number | piperaquine |
+| **crt** | PF3D7_0709000 | point mutations (K76T …; plus piperaquine-associated SNPs) | chloroquine, amodiaquine, piperaquine |
+| **mdr1** | PF3D7_0523000 | point mutations **and copy number** | lumefantrine, mefloquine, amodiaquine, chloroquine |
+| **dhfr** | PF3D7_0417200 | point mutations (N51I, C59R, S108N, I164L) | pyrimethamine (part of SP) |
+| **dhps** | PF3D7_0810800 | point mutations (A437G, K540E, A581G) | sulfadoxine (part of SP) |
+| **kelch13** | PF3D7_1343700 | propeller-domain mutations (e.g. C580Y, R561H) | artemisinin (partial resistance) |
+| **cytb** | PF3D7_MIT02300 | mutation at codon 268 | atovaquone |
+| **plasmepsin 2/3** | PF3D7_1408000 / …8100 | copy number | piperaquine |
 
-Full marker-by-marker detail is in `resources/dr_markers.tsv`.
+Full marker-by-marker detail: [`resources/dr_markers.tsv`](resources/dr_markers.tsv).
+Foundational references: *crt* K76T as a chloroquine-resistance marker — Djimdé
+*et al.*, **NEJM** 2001, [doi:10.1056/NEJM200101253440403](https://doi.org/10.1056/NEJM200101253440403);
+*kelch13* and artemisinin resistance — Ariey *et al.*, **Nature** 2014,
+[doi:10.1038/nature12876](https://doi.org/10.1038/nature12876). Current validated
+*kelch13* markers are maintained by the [WHO](https://www.who.int/teams/global-malaria-programme).
 
 ---
 
 ## Scaling to a cohort
 
-This workshop does one sample. For a real study you’d make **one GVCF per sample**
-(step 08 as-is), then genotype them **together** so every site is evaluated in
-every sample:
+This course does **one** sample. A real surveillance study does hundreds. The GVCF
+design (step 08) is what makes that work: one GVCF per sample, then **joint
+genotyping** so every position is evaluated in every sample.
 
 ```bash
-# 1) per sample (parallel): steps 00-08 -> sample1.g.vcf.gz, sample2.g.vcf.gz, ...
+# 1) per sample (in parallel): steps 00–08 -> sample1.g.vcf.gz, sample2.g.vcf.gz, ...
 
 # 2) consolidate the GVCFs
 gatk GenomicsDBImport \
@@ -426,91 +724,121 @@ gatk GenomicsDBImport \
      --genomicsdb-workspace-path cohort_db \
      -L ref/dr_genes.bed
 
-# 3) joint genotyping
+# 3) joint genotyping across the whole cohort
 gatk GenotypeGVCFs -R ref/Pf3D7.fasta -V gendb://cohort_db -O cohort.vcf.gz
 ```
 
-### BQSR and VQSR — why this workshop skips them
+### Why this course skips BQSR and VQSR
 
-- **BQSR** (Base Quality Score Recalibration, between steps 06 and 08) corrects
-  systematic errors in the sequencer’s quality scores. It needs a trusted
-  **known-variants** VCF to mask real variation. For *P. falciparum* there isn’t a
-  single standard known-sites set, and for a teaching run the benefit is small, so
-  we skip it. For a production cohort you can run
-  `gatk BaseRecalibrator`/`ApplyBQSR` using a high-confidence site list (e.g. one
-  derived from MalariaGEN’s Pf releases).
-- **VQSR** (Variant Quality Score Recalibration) replaces the step-09 hard filters
-  with a model **trained** on truth/training resource sets. It needs many samples
-  and good truth sets to be stable — so it’s a **cohort** tool, not a single-sample
-  one. With enough samples and a training set, swap step 09 for
-  `VariantRecalibrator` + `ApplyVQSR`. Until then, hard-filtering is the correct
-  choice.
+- **BQSR** (base quality recalibration) needs a trusted *known-variants* set to
+  mask real variation; there isn't a single standard one for *P. falciparum*, and
+  the benefit for teaching is small. For production you'd derive a high-confidence
+  site list (e.g. from [MalariaGEN Pf7](https://www.malariagen.net/parasite/pf7))
+  and run `BaseRecalibrator`/`ApplyBQSR` between steps 06 and 08.
+- **VQSR** (machine-learning variant filtering) *replaces* step 09's hard filters,
+  but it must be **trained on many samples** with good truth sets — a **cohort**
+  tool, not a single-sample one. With a cohort and training resources, swap step 09
+  for `VariantRecalibrator` + `ApplyVQSR`. Until then, hard-filtering is correct.
+  Docs: [VQSR](https://gatk.broadinstitute.org/hc/en-us/articles/360035531612-Variant-Quality-Score-Recalibration-VQSR).
 
 ---
 
 ## Annotation glossary
 
-Thresholds used in step 09 (GATK-recommended starting points):
+The quality annotations used in step 09's hard filters (GATK-recommended starting
+thresholds):
 
-| Annotation | Meaning | SNP filter | Indel filter |
-|-----------|---------|-----------|--------------|
-| **QD** | Quality normalised by depth | `< 2.0` | `< 2.0` |
-| **FS** | Fisher strand bias (Phred) | `> 60` | `> 200` |
-| **SOR** | Strand odds ratio (another strand-bias measure) | `> 3.0` | `> 10.0` |
-| **MQ** | Root-mean-square mapping quality | `< 40` | — |
-| **MQRankSum** | Mapping-quality difference ref vs alt reads | `< −12.5` | — |
-| **ReadPosRankSum** | Are alt alleles biased to read ends? | `< −8.0` | `< −20.0` |
+| Annotation | Plain meaning | SNP filter | Indel filter |
+|-----------|---------------|-----------|--------------|
+| **QD** | variant quality divided by depth (quality per read) | `< 2.0` | `< 2.0` |
+| **FS** | Fisher strand bias — are alt reads stuck on one strand? | `> 60` | `> 200` |
+| **SOR** | another strand-bias measure (odds ratio) | `> 3.0` | `> 10.0` |
+| **MQ** | root-mean-square mapping quality of the reads | `< 40` | — |
+| **MQRankSum** | mapping-quality difference between ref and alt reads | `< −12.5` | — |
+| **ReadPosRankSum** | are alt alleles biased to read ends (often artefacts)? | `< −8.0` | `< −20.0` |
 
-Indels get looser strand/position thresholds because they are intrinsically harder
-to align, which inflates strand and position metrics even for real indels.
+Indels get **looser** strand/position thresholds because they are intrinsically
+harder to align, which inflates these metrics even for real indels. Full reference:
+[GATK annotations](https://gatk.broadinstitute.org/hc/en-us/articles/360035890471-Hard-filtering-germline-short-variants).
+
+**Quick vocabulary:**
+- **Read** – one short stretch of sequenced DNA. **Paired-end** = both ends read.
+- **Reference / 3D7** – the standard genome we compare against.
+- **Mapping / alignment** – placing a read at its genome position.
+- **BAM** – compressed binary alignment file (`samtools` reads it).
+- **Variant / SNP / indel** – a difference from the reference (single base / insertion-deletion).
+- **VCF / GVCF** – the file formats that store variants / all-positions.
+- **Codon** – 3 DNA bases coding one amino acid; resistance markers are named by codon (e.g. K76T = lysine→threonine at codon 76).
+- **Coverage / depth** – reads overlapping a position.
+- **Copy number** – how many copies of a gene the parasite has.
 
 ---
 
-## Running locally
+## Troubleshooting
 
-You don’t need Codespaces. With [micromamba](https://mamba.readthedocs.io) (or
-conda/mamba):
+| Symptom | Fix |
+|---------|-----|
+| `command not found: gatk` / `bwa` | Environment not active. A new terminal should show `(pfdr)`; else run the activate line from Part 1. |
+| `ERROR: missing <file> - run step NN first` | You skipped a step or one failed. Run the named step; each script says what it needs. |
+| Step 04 is slow | The ~3.5 GB human index is downloading (first time only). Let it finish. |
+| `No space left on device` | Delete finished stages, e.g. `rm -rf results/01_fastqc_raw results/02_trim`, or use *Workshop mode* subsampling. |
+| Report row says `coord_mismatch` | A guard, not a crash: the reference and annotation versions disagree at that codon. See `config.sh` to pin a PlasmoDB release. |
+| An HTML report won't open | It's in the cloud VM — right-click ▸ *Open with Live Preview*, or download it and open locally. |
+
+More in **[INSTRUCTORS.md](INSTRUCTORS.md)** (for facilitators).
+
+---
+
+## Running locally (optional, no Codespaces)
+
+With [micromamba](https://mamba.readthedocs.io/en/latest/) or conda/mamba:
 
 ```bash
 micromamba create -y -f environment.yml
 micromamba activate pfdr
-# then the same commands as above, starting with:
 bash steps/00_reference.sh
+# ...then the same commands as above
 ```
 
-Needs internet (PlasmoDB + ENA + the hostile human index), ~4 CPUs and ~16 GB RAM
-for comfort, and a few GB of disk.
+Needs internet (PlasmoDB + ENA + the hostile index), ~4 CPUs, ~16 GB RAM, a few GB
+of disk.
 
 ---
 
 ## Repository layout
 
 ```
-.devcontainer/      Codespaces setup (installs the pfdr environment)
-environment.yml     all tools + versions
+.devcontainer/      Codespaces setup (installs the pfdr environment) — don't delete
+environment.yml     all tools + exact versions
 config.sh           every setting, with comments
-steps/              00–12, one script per stage (same commands as the README)
+steps/              00–12, one script per stage (identical to the README commands)
 scripts/            Python helpers (region builder, DR report, coverage plot)
 resources/          dr_genes.tsv, dr_markers.tsv  (editable reference tables)
 tests/              synthetic end-to-end self-test with known answers
 run_all.sh          run every step in order
+README.md           this course
+INSTRUCTORS.md      facilitation guide: timing, class setup, prebuilds, troubleshooting
 ```
 
-### Instructor self-test
-`bash tests/selftest.sh` builds a tiny synthetic genome with **planted** mutations
-(crt K76T on the + strand, dhfr S108N on the − strand) and a duplicated mdr1
-locus, runs the real step scripts, and asserts the report and copy-number estimate
-are correct. Runs in well under a minute and needs no downloads — a good smoke test
-before a workshop.
+**Instructor self-test:** `bash tests/selftest.sh` builds a tiny synthetic genome
+with planted mutations (*crt* K76T on the + strand, *dhfr* S108N on the − strand)
+and a duplicated *mdr1*, runs the real step scripts, and checks the report and
+copy-number estimate. Runs in under a minute, no downloads — a reliable smoke test.
 
 ---
 
 ## Going further
 
-- **MalariaGEN Pf7** — the reference resource for *P. falciparum* genomic
-  epidemiology and curated resistance classifications.
-- **Dedicated DR callers** for curated, clinical-grade output (GRC/amplicon
-  workflows). Use those for reporting; use this workshop to understand what they do
-  under the hood.
+- **[MalariaGEN Pf7](https://www.malariagen.net/parasite/pf7)** — >20,000 *P.
+  falciparum* genomes with curated resistance classifications; the reference
+  resource for the field ([paper](https://doi.org/10.12688/wellcomeopenres.18681.1)).
+- **[WHO Global Malaria Programme](https://www.who.int/teams/global-malaria-programme)**
+  and the **[Malaria Threats Map](https://apps.who.int/malaria/maps/threats/)** —
+  policy context and where markers are spreading.
+- **[WWARN](https://www.wwarn.org/)** — antimalarial resistance surveillance network.
+- **[Galaxy Training: variant analysis](https://training.galaxyproject.org/training-material/topics/variant-analysis/)**
+  — a gentler, GUI-based take on the same concepts if you want more practice.
+- **[GATK Best Practices](https://gatk.broadinstitute.org/hc/en-us/sections/360007226651-Best-Practices-Workflows)**
+  — the canonical variant-calling workflows this course is based on.
 
-> This pipeline is for **training and research**, not clinical diagnosis.
+> Reminder: this pipeline is for **training and research**, not clinical diagnosis.
