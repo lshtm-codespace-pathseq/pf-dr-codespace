@@ -157,7 +157,7 @@ T=4             # number of CPU threads to use
 
 ---
 
-### Step 00 — Get the reference genome *(script)*
+### Step 00 — Get the reference genome 
 
 ```bash
 mkdir ref
@@ -184,7 +184,7 @@ python ./scripts/build_dr_regions.py \
 
 **What it does.** Mapping and variant-calling tools can't just read a plain FASTA —
 they need pre-built **index** files beside it. This script downloads the 3D7 genome
-from PlasmoDB and builds:
+from PlasmoDB (from MalariaGen Pf8 Project) and builds:
 
 - a **`.fai`** index (`samtools faidx`) — lets tools jump to any position instantly;
 - a **`.dict`** dictionary (`gatk CreateSequenceDictionary`) — lists the contigs;
