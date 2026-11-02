@@ -1,0 +1,9 @@
+gene_id	gene	drugs	role
+PF3D7_0709000	crt	chloroquine, amodiaquine, piperaquine	point mutations (K76T and others)
+PF3D7_0523000	mdr1	lumefantrine, mefloquine, amodiaquine, chloroquine	point mutations plus gene copy number
+PF3D7_0417200	dhfr	pyrimethamine (part of SP)	point mutations
+PF3D7_0810800	dhps	sulfadoxine (part of SP)	point mutations
+PF3D7_1343700	kelch13	artemisinin partial resistance	propeller-domain point mutations
+PF3D7_MIT02300	cytb	atovaquone	point mutation at codon 268
+PF3D7_1408000	plasmepsin2	piperaquine	gene copy number (with plasmepsin3)
+PF3D7_1224000	gch1	pyrimethamine (compensatory)	gene copy number

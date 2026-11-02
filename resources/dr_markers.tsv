@@ -1,0 +1,36 @@
+gene	gene_id	codon	wt_aa	marker_aa	drug	evidence	note
+crt	PF3D7_0709000	74	M	I	chloroquine	established	part of the CVIET haplotype
+crt	PF3D7_0709000	75	N	E	chloroquine	established	part of the CVIET haplotype
+crt	PF3D7_0709000	76	K	T	chloroquine, amodiaquine	established	classic CQ marker; wild-type K76 linked to reduced lumefantrine susceptibility
+crt	PF3D7_0709000	93	T	S	piperaquine	established	SE Asia, on Dd2 background
+crt	PF3D7_0709000	97	H	Y	piperaquine	established	SE Asia
+crt	PF3D7_0709000	145	F	I	piperaquine	established	SE Asia
+crt	PF3D7_0709000	218	I	F	piperaquine	established	SE Asia
+crt	PF3D7_0709000	343	M	L	piperaquine	established	SE Asia
+crt	PF3D7_0709000	353	G	V	piperaquine	established	SE Asia
+mdr1	PF3D7_0523000	86	N	Y	amodiaquine, chloroquine	established	N86 wild-type linked to reduced lumefantrine susceptibility
+mdr1	PF3D7_0523000	184	Y	F	lumefantrine, mefloquine	established	co-selected with N86 by lumefantrine
+mdr1	PF3D7_0523000	1034	S	C	quinine	reported	South American background
+mdr1	PF3D7_0523000	1042	N	D	quinine	reported	South American background
+mdr1	PF3D7_0523000	1246	D	Y	amodiaquine	established	common in Africa and South America
+dhfr	PF3D7_0417200	51	N	I	pyrimethamine	established	part of the triple mutant
+dhfr	PF3D7_0417200	59	C	R	pyrimethamine	established	part of the triple mutant
+dhfr	PF3D7_0417200	108	S	N	pyrimethamine	established	key SP marker
+dhfr	PF3D7_0417200	164	I	L	pyrimethamine	established	high-level resistance, SE Asia and parts of Africa
+dhps	PF3D7_0810800	437	A	G	sulfadoxine	established	most common dhps marker
+dhps	PF3D7_0810800	540	K	E	sulfadoxine	established	marks higher-level SP resistance in East Africa
+dhps	PF3D7_0810800	581	A	G	sulfadoxine	established	associated with reduced IPTp efficacy
+kelch13	PF3D7_1343700	446	F	I	artemisinin	validated	WHO-validated, SE Asia
+kelch13	PF3D7_1343700	458	N	Y	artemisinin	validated	WHO-validated
+kelch13	PF3D7_1343700	469	C	Y	artemisinin	validated	reported in East Africa
+kelch13	PF3D7_1343700	476	M	I	artemisinin	validated	WHO-validated
+kelch13	PF3D7_1343700	493	Y	H	artemisinin	validated	WHO-validated
+kelch13	PF3D7_1343700	539	R	T	artemisinin	validated	WHO-validated
+kelch13	PF3D7_1343700	543	I	T	artemisinin	validated	WHO-validated
+kelch13	PF3D7_1343700	553	P	L	artemisinin	validated	WHO-validated
+kelch13	PF3D7_1343700	561	R	H	artemisinin	validated	WHO-validated, including East Africa
+kelch13	PF3D7_1343700	574	P	L	artemisinin	validated	WHO-validated
+kelch13	PF3D7_1343700	580	C	Y	artemisinin	validated	most widespread validated marker, SE Asia
+kelch13	PF3D7_1343700	622	R	I	artemisinin	validated	reported in the Horn of Africa
+kelch13	PF3D7_1343700	675	A	V	artemisinin	validated	WHO-validated
+cytb	PF3D7_MIT02300	268	Y	S	atovaquone	established	also Y268N/C; causes atovaquone-proguanil failure
