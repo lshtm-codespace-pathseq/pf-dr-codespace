@@ -4,7 +4,7 @@
   [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/OWNER/REPO)
 -->
 
-# Detecting malaria drug resistance from genome sequence — a 2-hour hands-on course
+# Detecting malaria drug resistance from genome sequence 
 
 Welcome! Over the next two hours you will take **raw DNA sequencing reads from a
 single *Plasmodium falciparum* (malaria) sample** and work, one command at a time,
