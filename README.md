@@ -286,7 +286,7 @@ data. We then run FastQC again so you can compare **before vs after**.
 mkdir -p results/02_trim
 
 fastp \
-    --in1 data/${S}_1.fastq.gz --in2 data/${S}_2.fastq.gz \
+    --in1 data/${S}.sub_1.fastq.gz --in2 data/${S}.sub_2.fastq.gz \
     --out1 results/02_trim/${S}.trim_1.fastq.gz \
     --out2 results/02_trim/${S}.trim_2.fastq.gz \
     --detect_adapter_for_pe \
