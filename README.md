@@ -175,7 +175,7 @@ gatk CreateSequenceDictionary -R Pf3D7.fasta
 cd ../
 python ./scripts/build_dr_regions.py \
       --fasta ./ref/Pf3D7.fasta \
-      --gff ./ref/Pf3D7.fasta.gff \
+      --gff ./ref/Pf3D7.gff \
       --genes ./resources/dr_genes.tsv \
       --out-bed ./resources/dr_genes.bed \
       --out-cds ./resources/dr_genes.cds.json
