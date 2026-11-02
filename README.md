@@ -335,14 +335,13 @@ hostile clean \
     --fastq2 results/02_trim/${S}.trim_2.fastq.gz \
     --aligner bowtie2 \
     --index human-t2t-hla \
-    --threads $T \
-    --out-dir results/03_dehost \
-    --force > results/03_dehost/hostile_log.json
+    --threads $T
+
 
 # hostile names its outputs *.clean_1.fastq.gz / *.clean_2.fastq.gz —
 # copy them to tidy names the next step expects:
-cp results/03_dehost/*clean_1.fastq.gz results/03_dehost/${S}.clean_1.fastq.gz
-cp results/03_dehost/*clean_2.fastq.gz results/03_dehost/${S}.clean_2.fastq.gz
+mv ./${S}.trim_1.clean_1.fastq.gz ./results/03_dehost/${S}.clean_1.fastq.gz
+mv ./${S}.trim_2.clean_2.fastq.gz ./results/03_dehost/${S}.clean_2.fastq.gz
 ```
 
 > ⏳ **First run downloads a ~3.5 GB human genome index** (`human-t2t-hla`), then
