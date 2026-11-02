@@ -171,14 +171,15 @@ samtools faidx Pf3D7.fasta
 bwa index Pf3D7.fasta
 gatk CreateSequenceDictionary -R Pf3D7.fasta
 
+# Get DR Bed file
+cd ../
 python ./scripts/build_dr_regions.py \
-      --fasta Pf3D7.fasta \
-      --gff Pf3D7.fasta.gff \
+      --fasta ./ref/Pf3D7.fasta \
+      --gff ./ref/Pf3D7.fasta.gff \
       --genes ./resources/dr_genes.tsv \
       --out-bed ./resources/dr_genes.bed \
       --out-cds ./resources/dr_genes.cds.json
 
-cd ../
 ```
 
 **What it does.** Mapping and variant-calling tools can't just read a plain FASTA —
