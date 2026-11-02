@@ -171,7 +171,7 @@ samtools faidx Pf3D7.fasta
 bwa index Pf3D7.fasta
 gatk CreateSequenceDictionary -R Pf3D7.fasta
 
-python ./scripts/build_dr_regions.py' \
+python ./scripts/build_dr_regions.py \
       --fasta Pf3D7.fasta \
       --gff Pf3D7.fasta.gff \
       --genes ./resources/dr_genes.tsv \
